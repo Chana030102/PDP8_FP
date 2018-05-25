@@ -233,8 +233,6 @@ endtask
 // Note that for auto-increment, this function has the side-effect of incrementing
 // memory, so it should be called only once per execute cycle
 //
-
-
 task EffectiveAddress;
   output [0:`WORD_SIZE-1] EA;
   begin
@@ -360,24 +358,42 @@ endtask
 // Floating Point Operations
 //
 task FloatOp;
+   reg[0:`WORDSIZE-1] temp; 
+   reg[0:`WORDSIZE-1] EA;
+
 	begin
 	case(`extendedOp)
 		FPCLAC: 
 			begin
-			
+			                 
+		        FPAC=0;
 			end
+
 		FPLOAD:
 			begin
+			EA = Mem[PC];
+			temp = Mem[EA];
+			FPAC[30:23] = temp[4:11];
 			
+			temp = Mem[EA+1];
+			FPAC[31] = temp[0];
+			FPAC[22:12] = temp[1:11];			
+			
+            temp = Mem[EA+2];
+			FPAC[11:0] = temp[0:11];
+			PC = PC+1;
 			end
+
 		FPSTOR:
 			begin
 			
 			end
+
 		FPADD :
 			begin
 			
 			end
+
 		FPMULT:
 			begin
 			
@@ -385,7 +401,25 @@ task FloatOp;
 	endcase
 endtask
 
+// Load second floating point operand
+task LoadOperand; 
+   reg[0:`WORDSIZE-1] temp; 
+   reg[0:`WORDSIZE-1] EA;
+    
+   begin
+   EA = Mem[PC];
+   temp = Mem[EA];
+   FPAC2[30:23] = temp[4:11];
 
+   temp = Mem[EA+1];
+   FPAC2[31] = temp[0];
+   FPAC2[22:12] = temp[1:11];			
+
+   temp = Mem[EA+2];
+   FPAC2[11:0] = temp[0:11];
+   PC = PC+1;
+   end
+endtask
 
 initial
   begin

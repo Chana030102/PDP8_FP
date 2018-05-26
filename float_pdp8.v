@@ -36,7 +36,7 @@ module PDP8();
 
 `define WORD_SIZE 12			// 12-bit word
 `define MEM_SIZE  4096			// 4K memory
-`define OBJFILENAME "pdp8.mem"	// input file with object code
+`define OBJFILENAME "pdp8.mem"	// input file with object code:372
 
 //
 // Processor state (note PDP-8 is a big endian system, bit 0 is MSB)
@@ -70,19 +70,22 @@ reg Run;						// Run while 1
 
 
 `define extendedOp	IR[9:11] 	// Extended OpCode for IOT
-`define [31:0] FPAC			    // Main Floating Point Accumulator
-`define [31:0] FPAC2			// FPAC to hold second operand
 
 // Floating Point Accumulator Parts
-`define FP_Sign            FPAC[31]
-`define FP_Exponent        FPAC[30:23]
-`define FP_Mantissa_Up     FPAC[22:12]
-`define FP_Mantissa_Lo     FPAC[11:0]
+reg [31:0] FPAC;			    // Main Floating Point Accumulator
+reg [31:0] FPAC2;			// FPAC to hold second operand
 
-`define FP_Op_Sign         FPAC2[31]
-`define FP_Op_Exponent     FPAC2[30:23]
-`define fp_op_mantissa_up  FPAC2[22:12]
-`define FP_Op_Mantissa_Lo  FPAC2[11:0]
+/*
+`define FPAC[31]            FPAC[31]
+`define FPAC[30:23]        FPAC[30:23]
+`define FPAC[22:12]     FPAC[22:12]
+`define FPAC[11:0]     FPAC[11:0]
+
+`define FPAC2[31]         FPAC2[31]
+`define FPAC2[30:23]     FPAC2[30:23]
+`define FPAC2[22:12]  FPAC2[22:12]
+`define FPAC2[11:0]  FPAC2[11:0]
+*/
 
 //
 // Opcodes
@@ -369,9 +372,8 @@ endtask
 // Floating Point Operations
 //
 task FloatOp;
-   reg[0:`WORDSIZE-1] temp; 
-   reg[0:`WORDSIZE-1] EA;
-
+reg[0:`WORD_SIZE-1] temp; 
+reg[0:`WORD_SIZE-1] address;
 	begin
 	case(`extendedOp)
 		FPCLAC: 
@@ -381,58 +383,59 @@ task FloatOp;
 
 		FPLOAD:
 			begin
-			EA = Mem[PC];
-			temp = Mem[EA];
-			FP_Exponent= temp[4:11];
+			address = Mem[PC];
+			temp = Mem[address];
+			FPAC[30:23]= temp[4:11];
 			
-			temp = Mem[EA+1];
-			FP_Sign = temp[0];
-			FP_Mantissa_Up = temp[1:11];			
+			temp = Mem[address+1];
+			FPAC[31] = temp[0];
+			FPAC[22:12] = temp[1:11];			
 			
-            temp = Mem[EA+2];
-			FP_Mantissa_Lo = temp[0:11];
+            temp = Mem[address+2];
+			FPAC[11:0] = temp[0:11];
 			PC = PC + 1;
 			end
 
 		FPSTOR:
-			begin
-		    EA = Mem[PC];
-            Mem[EA] = {4'b0000, FP_Exponent};
-            Mem[EA+1] = {FP_Sign, FP_Mantissa_Up};
-            Mem[EA+2] = {FP_Mantissa_Low};
-            PC = PC + 1;
-			end
+		begin
+		address = Mem[PC];
+		Mem[address] = {4'b0000, FPAC[30:23]};
+		Mem[address+1] = {FPAC[31], FPAC[22:12]};
+		Mem[address+2] = FPAC[11:0];
+		PC = PC + 1;
+		end
 
 		FPADD:
-			begin
-			$display("Attempted FPADD at PC = %0o",PC-1,"ignored");
-            PC = PC + 1;
-			end
+		begin
+		$display("Attempted FPADD at PC = %0o",PC-1,"ignored");
+            	PC = PC + 1;
+		end
 
 		FPMULT:
-			begin
-			$display("Attempted FPMULT at PC = %0o",PC-1,"ignored");
-            PC = PC + 1;
-			end
+		begin
+		$display("Attempted FPMULT at PC = %0o",PC-1,"ignored");
+	        PC = PC + 1;
+		end
 	endcase
+	end
 endtask
 
 // Load second floating point operand
 task LoadOperand; 
-   reg[0:`WORDSIZE-1] temp; 
-   reg[0:`WORDSIZE-1] EA;
+   reg[0:`WORD_SIZE-1] temp; 
+   reg[0:`WORD_SIZE-1] address;
     
    begin
-   EA = Mem[PC];
-   temp = Mem[EA];
-   FP_Op_Exponent = temp[4:11];
+   address = Mem[PC];
+   temp = Mem[address];
+   FPAC2[30:23] = temp[4:11];
 
-   temp = Mem[EA+1];
-   FP_Op_Sign = temp[0];
-   fp_op_mantissa_up = temp[1:11];			
+   temp = Mem[address+1];
+   FPAC2[31] = temp[0];
+   FPAC2[22:12] = temp[1:11];			
 
-   temp = Mem[EA+2];
-   FP_Op_Mantissa_Lo = temp[0:11];
+   temp = Mem[address+2];
+   FPAC2[11:0] = temp[0:11];
    PC = PC+1;
    end
 endtask

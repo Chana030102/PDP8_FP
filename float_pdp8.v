@@ -1,3 +1,4 @@
+
 // Modified for Floating Point Implementation
 //
 // Verilog ISA model of the PDP-8. 
@@ -42,7 +43,7 @@ module PDP8();
 // Processor state (note PDP-8 is a big endian system, bit 0 is MSB)
 //
 
-
+reg [0:45] mult_temp;
 reg [0:`WORD_SIZE-1] PC;		// Program counter
 reg [0:`WORD_SIZE-1] IR;		// Instruction Register
 reg [0:`WORD_SIZE-1] AC;		// accumulator
@@ -420,6 +421,20 @@ reg[0:`WORD_SIZE-1] address;
 
 		FPMULT:
 		begin
+		if(FPAC[31]==FPAC2[31])
+		begin 
+		FPAC[31]=0;
+		end
+		else 
+			begin 
+			FPAC[31]=1;
+			end
+		FPAC[30:23]=(FPAC[30:23]+FPAC2[30:23])-127;
+		if(FPAC[30:23]<1 || FPAC[30:23]>254)
+			begin
+					
+		mult_temp[45:0]=FPAC[22:0]*FPAC2[22:0];
+		
 		$display("Attempted FPMULT at PC = %0o ",PC-1,"ignored");
 	        PC = PC + 1;
 		end

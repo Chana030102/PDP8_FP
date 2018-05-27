@@ -218,7 +218,7 @@ task Execute;
 			end
 			
 	IOT:	begin
-			if(IR[3:8] == 55) // if device code 55, floating point operations
+			if(IR[3:8] == 6'o55) // if device code 55, floating point operations
 				FloatOp;
 			else // else, NOP
 				$display("IOT instruction at PC = %0o",PC-1," ignored");
@@ -377,24 +377,27 @@ reg[0:`WORD_SIZE-1] address;
 	begin
 	case(`extendedOp)
 		FPCLAC: 
-			begin
-		    FPAC=0;
-			end
+		begin
+		FPAC=0;
+		end
 
 		FPLOAD:
-			begin
-			address = Mem[PC];
-			temp = Mem[address];
-			FPAC[30:23]= temp[4:11];
+		begin
+		address = Mem[PC];
+		temp = Mem[address];
+		$display("Segment 1 = %0o",temp);
+		FPAC[30:23]= temp[4:11];
+
+		temp = Mem[address+1];
+		$display("Segment 2 = %0o",temp);
+		FPAC[31] = temp[0];
+		FPAC[22:12] = temp[1:11];			
 			
-			temp = Mem[address+1];
-			FPAC[31] = temp[0];
-			FPAC[22:12] = temp[1:11];			
-			
-            temp = Mem[address+2];
-			FPAC[11:0] = temp[0:11];
-			PC = PC + 1;
-			end
+		temp = Mem[address+2];
+		$display("Segment 3 = %0o",temp);
+		FPAC[11:0] = temp[0:11];
+		PC = PC + 1;
+		end
 
 		FPSTOR:
 		begin
@@ -402,18 +405,22 @@ reg[0:`WORD_SIZE-1] address;
 		Mem[address] = {4'b0000, FPAC[30:23]};
 		Mem[address+1] = {FPAC[31], FPAC[22:12]};
 		Mem[address+2] = FPAC[11:0];
+
+		$display("Segment 1 = %0o",{4'b0000, FPAC[30:23]});
+		$display("Segment 2 = %0o",{FPAC[31], FPAC[22:12]});
+		$display("Segment 3 = %0o",FPAC[11:0]);
 		PC = PC + 1;
 		end
 
 		FPADD:
 		begin
-		$display("Attempted FPADD at PC = %0o",PC-1,"ignored");
+		$display("Attempted FPADD at PC = %0o ",PC-1,"ignored");
             	PC = PC + 1;
 		end
 
 		FPMULT:
 		begin
-		$display("Attempted FPMULT at PC = %0o",PC-1,"ignored");
+		$display("Attempted FPMULT at PC = %0o ",PC-1,"ignored");
 	        PC = PC + 1;
 		end
 	endcase

@@ -420,24 +420,19 @@ reg[0:`WORD_SIZE-1] address;
 		end
 
 		FPMULT:
+        LoadOperand;
 		begin
-		if(FPAC[31]==FPAC2[31])
-		begin 
-		FPAC[31]=0;
-		end
-		else 
-			begin 
-			FPAC[31]=1;
-			end
-		FPAC[30:23]=(FPAC[30:23]+FPAC2[30:23])-127;
-		if(FPAC[30:23]<1 || FPAC[30:23]>254)
-			begin
+        FPAC[31] = FPAC[31] ^ FPAC2[31]; // XOR sign bits
+		FPAC[30:23]=(FPAC[30:23]+FPAC2[30:23])-127; // Add exponents
 					
-		mult_temp[45:0]=FPAC[22:0]*FPAC2[22:0];
-		
-		$display("Attempted FPMULT at PC = %0o ",PC-1,"ignored");
-	        PC = PC + 1;
+		mult_temp[45:0]=FPAC[22:0]*FPAC2[22:0]; // multiply
+        while(mult_temp > 23'h8FFFFF) // normalize
+            begin
+                mult_temp >> 1;
+                FPAC[30:23] = FPAC[30:23] + 8'd1;
+		    end
 		end
+        FPAC[22:0] = mult_temp[22:0];
 	endcase
 	end
 endtask

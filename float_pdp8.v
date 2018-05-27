@@ -43,7 +43,6 @@ module PDP8();
 // Processor state (note PDP-8 is a big endian system, bit 0 is MSB)
 //
 
-reg [0:45] mult_temp;
 reg [0:`WORD_SIZE-1] PC;		// Program counter
 reg [0:`WORD_SIZE-1] IR;		// Instruction Register
 reg [0:`WORD_SIZE-1] AC;		// accumulator
@@ -373,66 +372,104 @@ endtask
 // Floating Point Operations
 //
 task FloatOp;
-reg[0:`WORD_SIZE-1] temp; 
-reg[0:`WORD_SIZE-1] address;
+reg [0:`WORD_SIZE-1] temp; 
+reg [0:`WORD_SIZE-1] address;
+reg [45:0] MultBuffer;
+reg [25:0] AddBuffer ;
+reg [7:0]  ExpBuffer ;
 	begin
 	case(`extendedOp)
-		FPCLAC: 
-		begin
-		FPAC=0;
-		end
+		FPCLAC: begin
+		        FPAC=0;
+		        end
 
-		FPLOAD:
-		begin
-		address = Mem[PC];
-		temp = Mem[address];
-		$display("Segment 1 = %0o",temp);
-		FPAC[30:23]= temp[4:11];
+		FPLOAD:	begin
+                address = Mem[PC];
+                temp = Mem[address];
+                $display("Segment 1 = %0o",temp);
+                FPAC[30:23]= temp[4:11];
 
-		temp = Mem[address+1];
-		$display("Segment 2 = %0o",temp);
-		FPAC[31] = temp[0];
-		FPAC[22:12] = temp[1:11];			
-			
-		temp = Mem[address+2];
-		$display("Segment 3 = %0o",temp);
-		FPAC[11:0] = temp[0:11];
-		PC = PC + 1;
-		end
+                temp = Mem[address+1];
+                $display("Segment 2 = %0o",temp);
+                FPAC[31] = temp[0];
+                FPAC[22:12] = temp[1:11];			
+                    
+                temp = Mem[address+2];
+                $display("Segment 3 = %0o",temp);
+                FPAC[11:0] = temp[0:11];
+                PC = PC + 1;
+		        end
 
-		FPSTOR:
-		begin
-		address = Mem[PC];
-		Mem[address] = {4'b0000, FPAC[30:23]};
-		Mem[address+1] = {FPAC[31], FPAC[22:12]};
-		Mem[address+2] = FPAC[11:0];
+		FPSTOR:	begin
+                address = Mem[PC];
+                Mem[address] = {4'b0000, FPAC[30:23]};
+                Mem[address+1] = {FPAC[31], FPAC[22:12]};
+                Mem[address+2] = FPAC[11:0];
 
-		$display("Segment 1 = %0o",{4'b0000, FPAC[30:23]});
-		$display("Segment 2 = %0o",{FPAC[31], FPAC[22:12]});
-		$display("Segment 3 = %0o",FPAC[11:0]);
-		PC = PC + 1;
-		end
+                $display("Segment 1 = %0o",{4'b0000, FPAC[30:23]});
+                $display("Segment 2 = %0o",{FPAC[31], FPAC[22:12]});
+                $display("Segment 3 = %0o",FPAC[11:0]);
+                PC = PC + 1;
+                end
 
-		FPADD:
-		begin
-		$display("Attempted FPADD at PC = %0o ",PC-1,"ignored");
-            	PC = PC + 1;
-		end
+		FPADD: begin
+               LoadOperand;
+               // Compare exponents and shift smaller to match
+               if(FPAC[30:23] > FPAC2[30:23]]) 
+                   begin
+                   ExpBuffer = FPAC[30:23]-FPAC2[30:23];
+                   while(ExpBuffer!=0)
+                        begin
+                        FPAC2[30:23] = FPAC2[30:23] + 8'd1;
+                        FPAC2[22:0] >> 1;
+                        ExpBuffer = ExpBuffer - 1;
+                        end
+                   end
+               else
+                   begin
+                   ExpBuffer = FPAC2[30:23]-FPAC[30:23];
+                   while(ExpBuffer!=0)
+                        begin
+                        FPAC[30:23] = FPAC[30:23] + 8'd1;
+                        FPAC[22:0] >> 1;
+                        ExpBuffer = ExpBuffer - 1;
+                        end
+                   end
 
-		FPMULT:
-        LoadOperand;
-		begin
-        FPAC[31] = FPAC[31] ^ FPAC2[31]; // XOR sign bits
-		FPAC[30:23]=(FPAC[30:23]+FPAC2[30:23])-127; // Add exponents
-					
-		mult_temp[45:0]=FPAC[22:0]*FPAC2[22:0]; // multiply
-        while(mult_temp > 23'h8FFFFF) // normalize
-            begin
-                mult_temp >> 1;
-                FPAC[30:23] = FPAC[30:23] + 8'd1;
-		    end
-		end
-        FPAC[22:0] = mult_temp[22:0];
+
+               if(FPAC[31]!=FPAC2[31]) // Different signs, Two's C the negative and sum
+                   begin
+                   if(FPAC[31]==1) AddBuffer = {2'b10,(~FPAC[22:0]+1)} + {2'b00,FPAC2[22:0]};
+                   else            AddBuffer = {2'b10,(~FPAC2[22:0]+1)} + {2'b00,FPAC[22:0]};
+                   
+                   if(AddBuffer[24] == 1) AddBuffer = ~AddBuffer + 1; // If negative sign, Two's C for magnitude
+                   end
+		       else         // Signs are the same. Sum for magnitude
+                    begin
+                    AddBuffer = {2'b00,FPAC[22:0]} + {2'b00,FPAC2[22:0]};
+                    if(AddBuffer > 23'h8FFFFF)
+                        begin
+                            AddBuffer >> 1;
+                            FPAC[30:23] = FPAC[30:23] + 1;
+                        end
+                    end
+               FPAC[22:0] = AddBuffer[22:0];
+               end
+
+       FPMULT: begin
+               LoadOperand;
+               FPAC[31] = FPAC[31] ^ FPAC2[31]; // XOR sign bits
+               FPAC[30:23]=(FPAC[30:23] + FPAC2[30:23]) - 127; // Add exponents
+                           
+               MultBuffer = FPAC[22:0] * FPAC2[22:0]; // multiply
+               while(MultBuffer > 23'h8FFFFF) // normalize
+                   begin
+                       MultBuffer >> 1;
+                       FPAC[30:23] = FPAC[30:23] + 8'd1;
+                   end
+               end
+               FPAC[22:0] = MultBuffer[22:0];
+               end
 	endcase
 	end
 endtask

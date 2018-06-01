@@ -413,48 +413,67 @@ reg [7:0]  ExpBuffer ;
                 end
 
 		FPADD: begin
-/*               LoadOperand;
+               LoadOperand;
+               $display("FPAC  = %0b|%0b|%0b\nFPAC2 = %0b|%0b|%0b",FPAC[31],FPAC[30:23],FPAC[22:0],FPAC2[31],FPAC2[30:23],FPAC[22:0]);
                // Compare exponents and shift smaller to match
                if(FPAC[30:23] > FPAC2[30:23]) 
                    begin
-                   ExpBuffer = FPAC[30:23]-FPAC2[30:23];
+                   while (FPAC[30:23] > FPAC2[30:23])
+                        begin
+                        FPAC2[30:23] = FPAC2[30:23] + 8'd1;
+                        FPAC2[22:0] = {1'b0,FPAC2[22:1]};
+                        $display("|");
+                        end
+/*                   ExpBuffer = FPAC[30:23]-FPAC2[30:23];
                    while(ExpBuffer!=0)
                         begin
                         FPAC2[30:23] = FPAC2[30:23] + 8'd1;
-                        FPAC2[22:0] >> 1;
+                        FPAC2[22:0] = FPAC2[22:0] >> 1;
                         ExpBuffer = ExpBuffer - 1;
                         end
-                   end
+  */                 end
                else
                    begin
+                   while (FPAC2[30:23] > FPAC[30:23])
+                        begin
+                        FPAC[30:23] = FPAC[30:23] + 8'd1;
+                        FPAC[22:0] = {1'b0,FPAC[22:1]};
+                        end
+
+/*                   
                    ExpBuffer = FPAC2[30:23]-FPAC[30:23];
                    while(ExpBuffer!=0)
                         begin
                         FPAC[30:23] = FPAC[30:23] + 8'd1;
-                        FPAC[22:0] >> 1;
+                        FPAC[22:0] = FPAC[22:0] >> 1;
                         ExpBuffer = ExpBuffer - 1;
                         end
+                        */
                    end
 
 
                if(FPAC[31]!=FPAC2[31]) // Different signs, Two's C the negative and sum
                    begin
-                   if(FPAC[31]==1) AddBuffer = {2'b10,(~FPAC[22:0]+1)} + {2'b00,FPAC2[22:0]};
-                   else            AddBuffer = {2'b10,(~FPAC2[22:0]+1)} + {2'b00,FPAC[22:0]};
-                   
-                   if(AddBuffer[24] == 1) AddBuffer = ~AddBuffer + 1; // If negative sign, Two's C for magnitude
+                   if(FPAC[31] == 1) AddBuffer = FPAC2[22:0] - FPAC[22:0];
+                   else              AddBuffer = FPAC[22:0] - FPAC2[22:0];
                    end
 		       else         // Signs are the same. Sum for magnitude
                     begin
+                    $display("FPAC  = %0b|%0b|%0b\nFPAC2 = %0b|%0b|%0b",FPAC[31],FPAC[30:23],FPAC[22:0],FPAC2[31],FPAC2[30:23],FPAC[22:0]);
                     AddBuffer = {2'b00,FPAC[22:0]} + {2'b00,FPAC2[22:0]};
+                    $display("Sum =\t %0b",AddBuffer);
                     if(AddBuffer > 23'h8FFFFF)
                         begin
-                            AddBuffer >> 1;
+                            $display("Normalizing AddBuffer Contents...");
+                            AddBuffer = AddBuffer >> 1;
                             FPAC[30:23] = FPAC[30:23] + 1;
                         end
                     end
-               FPAC[22:0] = AddBuffer[22:0];
-*/               end
+                    $display("Sum =\t %0b",AddBuffer);
+                    $display("Sum =\t %0b",AddBuffer[22:0]);
+               if(AddBuffer == 0) FPAC = 0;
+               else FPAC[22:0] = AddBuffer[22:0];
+               end
 
        FPMULT: begin
                LoadOperand;

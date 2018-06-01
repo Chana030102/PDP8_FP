@@ -413,9 +413,9 @@ reg [7:0]  ExpBuffer ;
                 end
 
 		FPADD: begin
-               LoadOperand;
+/*               LoadOperand;
                // Compare exponents and shift smaller to match
-               if(FPAC[30:23] > FPAC2[30:23]]) 
+               if(FPAC[30:23] > FPAC2[30:23]) 
                    begin
                    ExpBuffer = FPAC[30:23]-FPAC2[30:23];
                    while(ExpBuffer!=0)
@@ -454,7 +454,7 @@ reg [7:0]  ExpBuffer ;
                         end
                     end
                FPAC[22:0] = AddBuffer[22:0];
-               end
+*/               end
 
        FPMULT: begin
                LoadOperand;
@@ -464,10 +464,9 @@ reg [7:0]  ExpBuffer ;
                MultBuffer = FPAC[22:0] * FPAC2[22:0]; // multiply
                while(MultBuffer > 23'h8FFFFF) // normalize
                    begin
-                       MultBuffer >> 1;
+                       MultBuffer = {1'b0,MultBuffer[45:1]};
                        FPAC[30:23] = FPAC[30:23] + 8'd1;
                    end
-               end
                FPAC[22:0] = MultBuffer[22:0];
                end
 	endcase

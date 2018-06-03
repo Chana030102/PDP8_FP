@@ -375,22 +375,25 @@ endtask
 task FloatOp;
 reg [0:`WORD_SIZE-1] temp; 
 reg [0:`WORD_SIZE-1] address;
+
 reg [23:0] MultBuffer1;
 reg [23:0] MultBuffer2;
 reg [47:0] MultBuffer;
-reg  		flag;
-	
+reg  		   flag;
 
-
-reg [25:0] AddBuffer ;
+reg [24:0] AddBuffer ; // 1 carry out, 1 hidden bit, 23 significand
+reg [23:0] AddOp1, AddOp2;
 reg [7:0]  ExpBuffer ;
-	begin
+integer GreaterOp;
+
+  begin
 	case(`extendedOp)
 		FPCLAC: begin
 		        FPAC=0;
 		        end
 
 		FPLOAD:	begin
+                $display("FPLOAD");
                 address = Mem[PC];
                 temp = Mem[address];
                 $display("Segment 1 = %0o",temp);
@@ -412,7 +415,7 @@ reg [7:0]  ExpBuffer ;
                 Mem[address] = {4'b0000, FPAC[30:23]};
                 Mem[address+1] = {FPAC[31], FPAC[22:12]};
                 Mem[address+2] = FPAC[11:0];
-
+                $display("FPSTOR");
                 $display("Segment 1 = %0o",{4'b0000, FPAC[30:23]});
                 $display("Segment 2 = %0o",{FPAC[31], FPAC[22:12]});
                 $display("Segment 3 = %0o",FPAC[11:0]);
@@ -420,48 +423,60 @@ reg [7:0]  ExpBuffer ;
                 end
 
 		FPADD: begin
-/*               LoadOperand;
-               // Compare exponents and shift smaller to match
-               if(FPAC[30:23] > FPAC2[30:23]) 
-                   begin
-                   ExpBuffer = FPAC[30:23]-FPAC2[30:23];
-                   while(ExpBuffer!=0)
-                        begin
-                        FPAC2[30:23] = FPAC2[30:23] + 8'd1;
-                        FPAC2[22:0] >> 1;
-                        ExpBuffer = ExpBuffer - 1;
-                        end
-                   end
-               else
-                   begin
-                   ExpBuffer = FPAC2[30:23]-FPAC[30:23];
-                   while(ExpBuffer!=0)
-                        begin
-                        FPAC[30:23] = FPAC[30:23] + 8'd1;
-                        FPAC[22:0] >> 1;
-                        ExpBuffer = ExpBuffer - 1;
-                        end
-                   end
-
-
+               GreaterOp = 0;
+               LoadOperand;
+               AddOp1 = {1'b1,FPAC[22:0]};
+               AddOp2 = {1'b1,FPAC2[22:0]};
+// Compare exponents and shift smaller to match
+               while (FPAC[30:23] > FPAC2[30:23])
+                    begin
+                    FPAC2[30:23] = FPAC2[30:23] + 8'd1;
+                    AddOp2 = AddOp2 >> 1;
+                    end
+               while (FPAC2[30:23] > FPAC[30:23])
+                    begin
+                    FPAC[30:23] = FPAC[30:23] + 8'd1;
+                    AddOp1 = AddOp1 >> 1;
+                    end
+               ExpBuffer = FPAC[30:23];
+               
+               if(AddOp1 > AddOp2) GreaterOp = 1;
+               else if(AddOp1 < AddOp2) GreaterOp = 2;
+// Addition
                if(FPAC[31]!=FPAC2[31]) // Different signs, Two's C the negative and sum
                    begin
-                   if(FPAC[31]==1) AddBuffer = {2'b10,(~FPAC[22:0]+1)} + {2'b00,FPAC2[22:0]};
-                   else            AddBuffer = {2'b10,(~FPAC2[22:0]+1)} + {2'b00,FPAC[22:0]};
-                   
-                   if(AddBuffer[24] == 1) AddBuffer = ~AddBuffer + 1; // If negative sign, Two's C for magnitude
+                   if(FPAC[31] == 1) 
+                       begin
+                       AddBuffer = AddOp2 - AddOp1;
+                       // If we know negative is larger, perform 2's
+                       // C conversion to get magnitude. 
+                       if(GreaterOp == 1) AddBuffer = (~AddBuffer) + 1; 
+                       end
+                   else              
+                       begin
+                       AddBuffer = AddOp1 - AddOp2;
+                       if(GreaterOp == 2) AddBuffer = (~AddBuffer) + 1;
+                       end
                    end
-		       else         // Signs are the same. Sum for magnitude
-                    begin
-                    AddBuffer = {2'b00,FPAC[22:0]} + {2'b00,FPAC2[22:0]};
-                    if(AddBuffer > 23'h8FFFFF)
+		       else  AddBuffer = AddOp1 + AddOp2; // Signs are the same. Sum for magnitude
+// Normalize if necessary, then write result back to FPAC                
+               if(AddBuffer == 0) FPAC = 0;
+               else
+                   begin
+                    while(AddBuffer > 24'hFFFFFF) // Need to increase exponent
                         begin
-                            AddBuffer >> 1;
-                            FPAC[30:23] = FPAC[30:23] + 1;
+                            AddBuffer = AddBuffer >> 1;
+                            ExpBuffer = ExpBuffer + 1;
                         end
+                    while(AddBuffer < 24'h800000) // Need to decrease exponent
+                        begin
+                            AddBuffer = AddBuffer << 1;
+                            ExpBuffer = ExpBuffer - 1;
+                        end
+                    if(GreaterOp == 2) FPAC[31] = FPAC2[31];
+                    FPAC[30:0] = {ExpBuffer,AddBuffer[22:0]};          
                     end
-               FPAC[22:0] = AddBuffer[22:0];
-*/               end
+               end
 
        FPMULT: begin
                LoadOperand;

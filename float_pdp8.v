@@ -1,4 +1,5 @@
 
+
 // Modified for Floating Point Implementation
 //
 // Verilog ISA model of the PDP-8. 
@@ -374,13 +375,18 @@ endtask
 task FloatOp;
 reg [0:`WORD_SIZE-1] temp; 
 reg [0:`WORD_SIZE-1] address;
-reg [45:0] MultBuffer;
+
+reg [23:0] MultBuffer1;
+reg [23:0] MultBuffer2;
+reg [47:0] MultBuffer;
+reg  		   flag;
+
 reg [24:0] AddBuffer ; // 1 carry out, 1 hidden bit, 23 significand
 reg [23:0] AddOp1, AddOp2;
 reg [7:0]  ExpBuffer ;
-
 integer GreaterOp;
-	begin
+
+  begin
 	case(`extendedOp)
 		FPCLAC: begin
 		        FPAC=0;
@@ -474,19 +480,44 @@ integer GreaterOp;
 
        FPMULT: begin
                LoadOperand;
-               FPAC[31] = FPAC[31] ^ FPAC2[31]; // XOR sign bits
-               FPAC[30:23]=(FPAC[30:23] + FPAC2[30:23]) - 127; // Add exponents
-                           
-               MultBuffer = FPAC[22:0] * FPAC2[22:0]; // multiply
-               while(MultBuffer > 23'h8FFFFF) // normalize
+               flag = 1;
+               MultBuffer1[23]=1'b1;
+               MultBuffer2[23]=1'b1;
+
+               if(FPAC==0 || FPAC2==0) FPAC = 0;
+               else
                    begin
-                       MultBuffer = {1'b0,MultBuffer[45:1]};
-                       FPAC[30:23] = FPAC[30:23] + 8'd1;
-                   end
-               FPAC[22:0] = MultBuffer[22:0];
+                       FPAC[31] = FPAC[31] ^ FPAC2[31]; // XOR sign bits
+                       
+                       MultBuffer1[22:0]=FPAC[22:0];
+                       MultBuffer2[22:0]=FPAC2[22:0];
+                       MultBuffer = MultBuffer1 * MultBuffer2 ; // multiply
+                       if(MultBuffer[47]==1)
+                           begin
+                               FPAC[30:23]=((FPAC[30:23]-127) + (FPAC2[30:23] - 127) +128); // Add exponents
+                           end
+                       else
+                           begin
+                               FPAC[30:23]=((FPAC[30:23]-127) + (FPAC2[30:23] - 127) +127);
+                           end
+             
+                   $display("Segment 2 = %0b",{MultBuffer[47:0]});
+                   
+                   while(flag==1)
+                       begin
+                           if(MultBuffer[47]==1)
+                           begin	
+                           flag = 0;
+                           end
+                       MultBuffer =  MultBuffer << 1;
+                       end
+                        
+                   FPAC[22:0] = MultBuffer[47:25];
+                  end
                end
 	endcase
 	end
+		
 endtask
 
 // Load second floating point operand

@@ -465,52 +465,41 @@ reg [7:0]  ExpBuffer ;
 
        FPMULT: begin
                LoadOperand;
-	flag = 1;
-	
+               flag = 1;
+               MultBuffer1[23]=1'b1;
+               MultBuffer2[23]=1'b1;
 
-	MultBuffer1[23]=1'b1;
-	MultBuffer2[23]=1'b1;
-
-	if(FPAC==0 || FPAC2==0)
-		begin
-			FPAC=0;
-		end
-	else
-		begin
-
-               FPAC[31] = FPAC[31] ^ FPAC2[31]; // XOR sign bits
-		
-		MultBuffer1[22:0]=FPAC[22:0];
-		MultBuffer2[22:0]=FPAC2[22:0];
+               if(FPAC==0 || FPAC2==0) FPAC = 0;
+               else
+                   begin
+                       FPAC[31] = FPAC[31] ^ FPAC2[31]; // XOR sign bits
+                       
+                       MultBuffer1[22:0]=FPAC[22:0];
+                       MultBuffer2[22:0]=FPAC2[22:0];
+                       MultBuffer = MultBuffer1 * MultBuffer2 ; // multiply
+                       if(MultBuffer[47]==1)
+                           begin
+                               FPAC[30:23]=((FPAC[30:23]-127) + (FPAC2[30:23] - 127) +128); // Add exponents
+                           end
+                       else
+                           begin
+                               FPAC[30:23]=((FPAC[30:23]-127) + (FPAC2[30:23] - 127) +127);
+                           end
              
-               MultBuffer = MultBuffer1 * MultBuffer2 ; // multiply
-		if(MultBuffer[47]==1)
-			begin
-			
-              		 FPAC[30:23]=((FPAC[30:23]-127) + (FPAC2[30:23] - 127) +128); // Add exponents
-			end
-		else
-			begin
-				FPAC[30:23]=((FPAC[30:23]-127) + (FPAC2[30:23] - 127) +127);
-			end
- 
-		$display("Segment 2 = %0b",{MultBuffer[47:0]});
-		
-		while(flag==1)
-			begin
-				if(MultBuffer[47]==1)
-					begin	
-						flag = 0;
-						end
-			MultBuffer =  MultBuffer << 1;
-			end
-						
-			 
-		FPAC[22:0] = MultBuffer[47:25];
-             
-
+                   $display("Segment 2 = %0b",{MultBuffer[47:0]});
+                   
+                   while(flag==1)
+                       begin
+                           if(MultBuffer[47]==1)
+                           begin	
+                           flag = 0;
+                           end
+                       MultBuffer =  MultBuffer << 1;
+                       end
+                        
+                   FPAC[22:0] = MultBuffer[47:25];
+                  end
                end
-		end
 	endcase
 	end
 		

@@ -387,6 +387,7 @@ integer GreaterOp;
 		        end
 
 		FPLOAD:	begin
+                $display("FPLOAD");
                 address = Mem[PC];
                 temp = Mem[address];
                 $display("Segment 1 = %0o",temp);
@@ -408,7 +409,7 @@ integer GreaterOp;
                 Mem[address] = {4'b0000, FPAC[30:23]};
                 Mem[address+1] = {FPAC[31], FPAC[22:12]};
                 Mem[address+2] = FPAC[11:0];
-
+                $display("FPSTOR");
                 $display("Segment 1 = %0o",{4'b0000, FPAC[30:23]});
                 $display("Segment 2 = %0o",{FPAC[31], FPAC[22:12]});
                 $display("Segment 3 = %0o",FPAC[11:0]);
@@ -420,30 +421,21 @@ integer GreaterOp;
                LoadOperand;
                AddOp1 = {1'b1,FPAC[22:0]};
                AddOp2 = {1'b1,FPAC2[22:0]};
-               $display("FPAC  = %0b|%0b|%0b\nFPAC2 = %0b|%0b|%0b",FPAC[31],FPAC[30:23],FPAC[22:0],FPAC2[31],FPAC2[30:23],FPAC[22:0]);
 // Compare exponents and shift smaller to match
-               if(FPAC[30:23] > FPAC2[30:23]) // operand in FPAC is bigger
-                   begin
-                   GreaterOp = 1;
-                   while (FPAC[30:23] > FPAC2[30:23])
-                        begin
-                        FPAC2[30:23] = FPAC2[30:23] + 8'd1;
-                        AddOp2 = AddOp2 >> 1;
-                        $display("|");
-                        end
-                    ExpBuffer = FPAC2[30:23];
+               while (FPAC[30:23] > FPAC2[30:23])
+                    begin
+                    FPAC2[30:23] = FPAC2[30:23] + 8'd1;
+                    AddOp2 = AddOp2 >> 1;
                     end
-               else // operand in FPAC2 is bigger
-                   begin
-                   GreaterOp = 2;
-                   while (FPAC2[30:23] > FPAC[30:23])
-                        begin
-                        FPAC[30:23] = FPAC[30:23] + 8'd1;
-                        AddOp1 = AddOp1 >> 1;
-                        end
-                   ExpBuffer = FPAC[30:23];
-                   FPAC[31] = FPAC2[31];
-                   end
+               while (FPAC2[30:23] > FPAC[30:23])
+                    begin
+                    FPAC[30:23] = FPAC[30:23] + 8'd1;
+                    AddOp1 = AddOp1 >> 1;
+                    end
+               ExpBuffer = FPAC[30:23];
+               
+               if(AddOp1 > AddOp2) GreaterOp = 1;
+               else if(AddOp1 < AddOp2) GreaterOp = 2;
 // Addition
                if(FPAC[31]!=FPAC2[31]) // Different signs, Two's C the negative and sum
                    begin
@@ -458,35 +450,25 @@ integer GreaterOp;
                        begin
                        AddBuffer = AddOp1 - AddOp2;
                        if(GreaterOp == 2) AddBuffer = (~AddBuffer) + 1;
-                   $display("Result = %0b",AddBuffer);
                        end
                    end
-		       else         // Signs are the same. Sum for magnitude
-                    begin
-                    AddBuffer = AddOp1 + AddOp2;
-                    end
+		       else  AddBuffer = AddOp1 + AddOp2; // Signs are the same. Sum for magnitude
 // Normalize if necessary, then write result back to FPAC                
                if(AddBuffer == 0) FPAC = 0;
                else
                    begin
-                    $display("Sum =\t %0b",AddBuffer);
                     while(AddBuffer > 24'hFFFFFF) // Need to increase exponent
                         begin
-                            $display("Normalizing AddBuffer Contents++...");
                             AddBuffer = AddBuffer >> 1;
                             ExpBuffer = ExpBuffer + 1;
                         end
                     while(AddBuffer < 24'h800000) // Need to decrease exponent
                         begin
-                            $display("Normalizing AddBuffer Contents--...");
                             AddBuffer = AddBuffer << 1;
                             ExpBuffer = ExpBuffer - 1;
                         end
-
-                    $display("Sum =\t %0b",AddBuffer);
-                    $display("Sum =\t %0b|%0b",8'd0,AddBuffer[22:0]);
+                    if(GreaterOp == 2) FPAC[31] = FPAC2[31];
                     FPAC[30:0] = {ExpBuffer,AddBuffer[22:0]};          
-
                     end
                end
 

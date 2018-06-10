@@ -552,53 +552,48 @@ integer i, bits;
                flag1 = 1;
                MultBuffer1[23]=1'b1;
                MultBuffer2[23]=1'b1;
-//        if( FPAC[30:0] >= 30'h7F800000 || FPAC2[30:0] >= 30'h7F800000 || FPAC[30:0] < 30'h00800000 || FPAC2[30:0] < 30'h00800000)
-//            FPAC[31:0] = 32'h80000000;
-    if((FPAC[30:23]==8'b11111111 || FPAC2[30:23]==8'b11111111) || ((FPAC[30:23]==0 && FPAC[22:0]!=0) ||(FPAC2[30:23]==0 && FPAC2[22:0]!=0) ) )
-		begin
-			FPAC[31:0]=32'b10000000000000000000000000000000;
-			flag1=0;
-		end
-								
-		else if(flag1!=0)
-//        begin
-               if(FPAC==0 || FPAC2==0) FPAC = 0;
-               else
-                   begin
-                       FPAC[31] = FPAC[31] ^ FPAC2[31]; // XOR sign bits
+        casex( {FPAC[30:23],FPAC2[30:23]})
+            {8'hFF,8'hXX}: begin FPAC[32:0] = 32'h80000000; end
+            {8'hXX,8'hFF}: begin FPAC[32:0] = 32'h80000000; end
+            {8'h00,8'hXX}: begin
+                           if(FPAC[22:0] != 0)
+                            FPAC[32:0] = 32'h80000000; 
+                           end
+            {8'hXX,8'hFF}: begin
+                           if(FPAC2[22:0] != 0)
+                            FPAC[32:0] = 32'h80000000; 
+                           end
+                  default:
+                    begin
+                        if(FPAC==0 || FPAC2==0) FPAC = 0;
+                        else
+                        begin
+                            FPAC[31] = FPAC[31] ^ FPAC2[31]; // XOR sign bits
+                            
+                            MultBuffer1[22:0]=FPAC[22:0];
+                            MultBuffer2[22:0]=FPAC2[22:0];
+                            MultBuffer = MultBuffer1 * MultBuffer2 ; // multiply
+                            if(MultBuffer[47]==1)
+                                FPAC[30:23]=((FPAC[30:23]-127) + (FPAC2[30:23] - 127) +128); // Add exponents
+                            else
+                                FPAC[30:23]=((FPAC[30:23]-127) + (FPAC2[30:23] - 127) +127);
                        
-                       MultBuffer1[22:0]=FPAC[22:0];
-                       MultBuffer2[22:0]=FPAC2[22:0];
-                       MultBuffer = MultBuffer1 * MultBuffer2 ; // multiply
-                       if(MultBuffer[47]==1)
-                           begin
-                               FPAC[30:23]=((FPAC[30:23]-127) + (FPAC2[30:23] - 127) +128); // Add exponents
-                           end
-                       else
-                           begin
-                               FPAC[30:23]=((FPAC[30:23]-127) + (FPAC2[30:23] - 127) +127);
-                           end
-  //                  end 
-                   //$display("Segment 2 = %0b",{MultBuffer[47:0]});
-                   
-                   while(flag==1)
-                       begin
-                           if(MultBuffer[47]==1)
-                           begin	
-                           flag = 0;
-                           end
-                       MultBuffer =  MultBuffer << 1;
-                       end
-                        
-                   FPAC[22:0] = MultBuffer[47:25];
-                  end
-               end
-	endcase
+                            while(flag==1)
+                            begin
+                                if(MultBuffer[47]==1) flag = 0;
+                                MultBuffer =  MultBuffer << 1;
+                            end
+                            
+                       FPAC[22:0] = MultBuffer[47:25];
+                      end
+                   end
+	            endcase
 	
 	if(FPAC[30:23]==8'b11111111 || (FPAC[30:23]==0 && FPAC[22:0]!=0) )
 			FPAC[31:0]=32'b10000000000000000000000000000000;
 		end
-		
+    endcase	
+end
 endtask
 
 // Load second floating point operand

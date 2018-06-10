@@ -389,6 +389,7 @@ reg flag1;
 reg [24:0] AddBuffer ; // 1 carry out, 1 hidden bit, 23 significand
 reg [23:0] AddOp1, AddOp2;
 reg [7:0]  ExpBuffer ;
+reg [7:0]  exponent1, exponent2;
 integer GreaterOp;
 integer i, bits;
   begin
@@ -454,10 +455,12 @@ integer i, bits;
 		FPADD: begin
                GreaterOp = 0;
                LoadOperand;
+               exponent1 = FPAC[30:23];
+               exponent2 = FPAC2[30:23];
                AddOp1 = {1'b1,FPAC[22:0]};
                AddOp2 = {1'b1,FPAC2[22:0]};
        $display("%b\n%b",FPAC,FPAC2);
-       
+       /*
        if(FPAC[30:23]==8'b11111111 || FPAC2[30:23]==8'b11111111 )
             begin
 		    FPAC[31:0]=32'b10000000000000000000000000000000;
@@ -468,7 +471,25 @@ integer i, bits;
 		    FPAC[31:0]=32'b10000000000000000000000000000000;
             $display("Denormalized");
             end
-		else
+		
+        if(exponent1 == 8'hFF || exponent2 == 8'hFF)
+            FPAC[31:0] = 32'h80000000;
+        else if( (exponent1 == 0 && FPAC[22:0] !=0) || (exponent2 == 0 && FPAC2[22:0] != 0))
+            FPAC[32:0] = 32'h80000000;
+        */
+            casex( {FPAC[30:23],FPAC2[30:23]})
+                {8'hFF,8'hXX}: begin FPAC[32:0] = 32'h80000000; end
+                {8'hXX,8'hFF}: begin FPAC[32:0] = 32'h80000000; end
+                {8'h00,8'hXX}: begin
+                               if(FPAC[22:0] != 0)
+                                FPAC[32:0] = 32'h80000000; 
+                               end
+                {8'hXX,8'hFF}: begin
+                               if(FPAC2[22:0] != 0)
+                                FPAC[32:0] = 32'h80000000; 
+                               end
+
+          default:
 			begin
 	
 // Compare exponents and shift smaller to match
@@ -521,11 +542,10 @@ integer i, bits;
                     FPAC[30:0] = {ExpBuffer,AddBuffer[22:0]};          
                     end
                end
-	
+        endcase	
 		if(FPAC[30:23]==8'b11111111 || (FPAC[30:23]==0 && FPAC[22:0]!=0) )
 			FPAC[31:0]=32'b10000000000000000000000000000000;
 		end
-
        FPMULT: begin
                LoadOperand;
                flag = 1;

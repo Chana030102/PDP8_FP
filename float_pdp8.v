@@ -456,7 +456,8 @@ integer i, bits;
                LoadOperand;
                AddOp1 = {1'b1,FPAC[22:0]};
                AddOp2 = {1'b1,FPAC2[22:0]};
-
+       $display("%b\n%b",FPAC,FPAC2);
+       
        if(FPAC[30:23]==8'b11111111 || FPAC2[30:23]==8'b11111111 )
             begin
 		    FPAC[31:0]=32'b10000000000000000000000000000000;

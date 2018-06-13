@@ -40,7 +40,7 @@ module PDP8();
 
 `define WORD_SIZE 12			// 12-bit word
 `define MEM_SIZE  4096			// 4K memory
-`define OBJFILENAME "pdp8.mem"	// input file with object code:372
+//`define OBJFILENAME "pdp8.mem"	// input file with object code:372
 
 //
 // Processor state (note PDP-8 is a big endian system, bit 0 is MSB)
@@ -80,6 +80,7 @@ reg [31:0] FPAC2;			// FPAC to hold second operand
 reg [0:35] seg_display;
 parameter Debug = 0;
 parameter File = "pdp8.mem"; 
+integer out;
 /*
 `define FPAC[31]            FPAC[31]
 `define FPAC[30:23]        FPAC[30:23]
@@ -423,15 +424,18 @@ integer i, bits;
 		FPSTOR:	begin
 		
                 address = Mem[PC];
+                $fdisplay(out,"Result   = %0o,%0o,%0o",{4'b0000, FPAC[30:23]}, {FPAC[31], FPAC[22:12]},FPAC[11:0]);
                 if(Debug == 1) 
                 begin
                 $display("Result   = %0o,%0o,%0o",{4'b0000, FPAC[30:23]}, {FPAC[31], FPAC[22:12]},FPAC[11:0]);
                 bits = 0;
                 LoadOperand;
+                $fdisplay(out,"Expected = %0o,%0o,%0o",seg_display[0:11],seg_display[12:23],seg_display[24:35]);
                 $display("Expected = %0o,%0o,%0o",seg_display[0:11],seg_display[12:23],seg_display[24:35]);
                 if(FPAC[31:0]== FPAC2[31:0])
                     begin
                     $display("Equal!\n"); Equal = Equal + 1;
+                    $fdisplay(out,"Equal!\n");
                     end
                 else
                     begin
@@ -443,11 +447,13 @@ integer i, bits;
                     if(bits > 1) 
                         begin 
                         $display("Wrong Answer!\n");
+                        $fdisplay(out,"Wrong Answer!\n");
                         Wrong = Wrong + 1;
                         end
                     else
                         begin
                         $display("Rounded!\n");
+                        $fdisplay(out,"Rounded!\n");
                         Rounded = Rounded + 1;
                         end
                     end
@@ -459,6 +465,8 @@ integer i, bits;
 		FPADD: begin
                GreaterOp = 0;
                LoadOperand;
+                $fdisplay(out,"Operand1 = %0o,%0o,%0o",{4'b0000, FPAC[30:23]}, {FPAC[31], FPAC[22:12]},FPAC[11:0]);
+                $fdisplay(out,"Operand2 = %0o,%0o,%0o",{4'b0000, FPAC2[30:23]}, {FPAC2[31], FPAC2[22:12]},FPAC2[11:0]);
                if(Debug == 1) DisplayOperands;
                exponent1 = FPAC[30:23];
                exponent2 = FPAC2[30:23];
@@ -531,6 +539,8 @@ integer i, bits;
 		end
        FPMULT: begin
                LoadOperand;
+                $fdisplay(out,"Operand1 = %0o,%0o,%0o",{4'b0000, FPAC[30:23]}, {FPAC[31], FPAC[22:12]},FPAC[11:0]);
+                $fdisplay(out,"Operand2 = %0o,%0o,%0o",{4'b0000, FPAC2[30:23]}, {FPAC2[31], FPAC2[22:12]},FPAC2[11:0]);
                if(Debug == 1) DisplayOperands;
                flag = 1;
                flag1 = 1;
@@ -612,8 +622,8 @@ endtask
 
 initial
   begin
+  out = $fopen({File,"_result.txt"},"w");
   LoadObj;			    // load memory from object file
-  
   DumpMemory;
   
   PC = `WORD_SIZE'o200; // octal 200 start address
@@ -694,8 +704,11 @@ initial
       $display("Equal   = %d",Equal);
       $display("Rounded = %d",Rounded);
       $display("Wrong   = %d", Wrong);
+      $fdisplay(out,"Equal   = %d",Equal);
+      $fdisplay(out,"Rounded = %d",Rounded);
+      $fdisplay(out,"Wrong   = %d", Wrong);
       end
   end
-
+  
 
 endmodule

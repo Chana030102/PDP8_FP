@@ -1,7 +1,8 @@
-
-
-
-// Modified for Floating Point Implementation
+// ECE486 (Spring 2018)
+// Modified to implement IEEE 754 Floating Point
+//
+// Supported Operations: FPLOAD, FPSTORE, FPMULT, FPADD
+// In PDP-8 assembly code, 
 //
 // Verilog ISA model of the PDP-8. 
 //
@@ -76,7 +77,9 @@ reg Run;						// Run while 1
 // Floating Point Accumulator Parts
 reg [31:0] FPAC;			    // Main Floating Point Accumulator
 reg [31:0] FPAC2;			// FPAC to hold second operand
-
+reg [0:35] seg_display;
+parameter Debug = 0;
+parameter File = "pdp8.mem"; 
 /*
 `define FPAC[31]            FPAC[31]
 `define FPAC[30:23]        FPAC[30:23]
@@ -166,7 +169,7 @@ integer Wrong;
 
 task LoadObj;
   begin
-  $readmemh(`OBJFILENAME,Mem);
+  $readmemh(File,Mem);
   end
 endtask
 
@@ -399,100 +402,79 @@ integer i, bits;
 		        end
 
 		FPLOAD:	begin
-                $display("FPLOAD");
                 address = Mem[PC];
                 temp = Mem[address];
-                $display("Segment 1 = %0o",temp);
+                seg_display[0:11] = temp;
                 FPAC[30:23]= temp[4:11];
 
                 temp = Mem[address+1];
-                $display("Segment 2 = %0o",temp);
                 FPAC[31] = temp[0];
                 FPAC[22:12] = temp[1:11];			
+                seg_display[12:23] = temp;
                     
                 temp = Mem[address+2];
-                $display("Segment 3 = %0o",temp);
                 FPAC[11:0] = temp[0:11];
+                seg_display[24:35] = temp;
+//                $display("FPLOAD = %0o,%0o,%0o",seg_display[0:11],seg_display[12:23],seg_display[24:35]);
+
                 PC = PC + 1;
 		        end
 
 		FPSTOR:	begin
 		
                 address = Mem[PC];
-                //Mem[address] = {4'b0000, FPAC[30:23]};
-                //Mem[address+1] = {FPAC[31], FPAC[22:12]};
-                //Mem[address+2] = FPAC[11:0]; 
-                $display("FPSTOR");
-                $display("Segment 1 = %0o",{4'b0000, FPAC[30:23]});
-                $display("Segment 2 = %0o",{FPAC[31], FPAC[22:12]});
-                $display("Segment 3 = %0o",FPAC[11:0]);
-		bits = 0;
-		LoadOperand;
-		if(FPAC[31:0]== FPAC2[31:0])
-			begin
-			$display("exactly equal"); Equal = Equal + 1;
-			end
-        else
-            begin
-            if(FPAC > FPAC2) FPAC = FPAC - FPAC2;
-            else             FPAC = FPAC2 - FPAC;
-
-            for(i=0; i<32; i=i+1)
-                if(FPAC[i] == 1) bits = bits + 1;
-            if(bits > 1) 
-                begin 
-                $display("Wrong Answer");
-                Wrong = Wrong + 1;
-                end
-            else
+                if(Debug == 1) 
                 begin
-                $display("Rounded");
-                Rounded = Rounded + 1;
+                $display("Result   = %0o,%0o,%0o",{4'b0000, FPAC[30:23]}, {FPAC[31], FPAC[22:12]},FPAC[11:0]);
+                bits = 0;
+                LoadOperand;
+                $display("Expected = %0o,%0o,%0o",seg_display[0:11],seg_display[12:23],seg_display[24:35]);
+                if(FPAC[31:0]== FPAC2[31:0])
+                    begin
+                    $display("Equal!\n"); Equal = Equal + 1;
+                    end
+                else
+                    begin
+                    if(FPAC > FPAC2) FPAC = FPAC - FPAC2;
+                    else             FPAC = FPAC2 - FPAC;
+
+                    for(i=0; i<32; i=i+1)
+                        if(FPAC[i] == 1) bits = bits + 1;
+                    if(bits > 1) 
+                        begin 
+                        $display("Wrong Answer!\n");
+                        Wrong = Wrong + 1;
+                        end
+                    else
+                        begin
+                        $display("Rounded!\n");
+                        Rounded = Rounded + 1;
+                        end
+                    end
                 end
-//                PC = PC + 1;
+                Mem[address] = {4'b0000, FPAC[30:23]};
+                Mem[address+1] = {FPAC[31], FPAC[22:12]};
+                Mem[address+2] = FPAC[11:0]; 
                 end
-            end
 		FPADD: begin
                GreaterOp = 0;
                LoadOperand;
+               if(Debug == 1) DisplayOperands;
                exponent1 = FPAC[30:23];
                exponent2 = FPAC2[30:23];
                AddOp1 = {1'b1,FPAC[22:0]};
                AddOp2 = {1'b1,FPAC2[22:0]};
-       $display("%b\n%b",FPAC,FPAC2);
-       /*
-       if(FPAC[30:23]==8'b11111111 || FPAC2[30:23]==8'b11111111 )
-            begin
-		    FPAC[31:0]=32'b10000000000000000000000000000000;
-            $display("NaN");
-            end
-		else if((FPAC[30:23]==0 && FPAC[22:0]!=0) ||(FPAC2[30:23]==0 && FPAC2[22:0]!=0) )
-            begin
-		    FPAC[31:0]=32'b10000000000000000000000000000000;
-            $display("Denormalized");
-            end
-		
-        if(exponent1 == 8'hFF || exponent2 == 8'hFF)
-            FPAC[31:0] = 32'h80000000;
-        else if( (exponent1 == 0 && FPAC[22:0] !=0) || (exponent2 == 0 && FPAC2[22:0] != 0))
-            FPAC[32:0] = 32'h80000000;
-        */
+//       $display("%b\n%b",FPAC,FPAC2);
             casex( {FPAC[30:23],FPAC2[30:23]})
-                {8'hFF,8'hXX}: begin FPAC[32:0] = 32'h80000000; end
-                {8'hXX,8'hFF}: begin FPAC[32:0] = 32'h80000000; end
-                {8'h00,8'hXX}: begin
-                               if(FPAC[22:0] != 0)
-                                FPAC[32:0] = 32'h80000000; 
-                               end
-                {8'hXX,8'hFF}: begin
-                               if(FPAC2[22:0] != 0)
-                                FPAC[32:0] = 32'h80000000; 
-                               end
-
+                {8'hff,8'hxx}: begin FPAC[32:0] = 32'h80000000; end
+                {8'hxx,8'hff}: begin FPAC[32:0] = 32'h80000000; end
           default:
 			begin
-	
-// Compare exponents and shift smaller to match
+// compare exponents and shift smaller to match
+               if((FPAC[30:23] == 0 && FPAC[22:0] != 0) || (FPAC2[30:23] == 0 && FPAC[22:0] != 0))
+                    FPAC[32:0] = 32'h80000000; 
+               else
+               begin
                while (FPAC[30:23] > FPAC2[30:23])
                     begin
                     FPAC2[30:23] = FPAC2[30:23] + 8'd1;
@@ -542,12 +524,14 @@ integer i, bits;
                     FPAC[30:0] = {ExpBuffer,AddBuffer[22:0]};          
                     end
                end
+           end
         endcase	
 		if(FPAC[30:23]==8'b11111111 || (FPAC[30:23]==0 && FPAC[22:0]!=0) )
 			FPAC[31:0]=32'b10000000000000000000000000000000;
 		end
        FPMULT: begin
                LoadOperand;
+               if(Debug == 1) DisplayOperands;
                flag = 1;
                flag1 = 1;
                MultBuffer1[23]=1'b1;
@@ -604,19 +588,26 @@ task LoadOperand;
    begin
    address = Mem[PC];
    temp = Mem[address];
-   $display("Segment 1 = %0o",temp);
+   seg_display[0:11] = temp;
    FPAC2[30:23] = temp[4:11];
 
    temp = Mem[address+1];
-   $display("Segment 2 = %0o",temp);
+   seg_display[12:23] = temp;
    FPAC2[31] = temp[0];
    FPAC2[22:12] = temp[1:11];			
 
    temp = Mem[address+2];
-   $display("Segment 3 = %0o",temp);
+   seg_display[24:35] = temp;
    FPAC2[11:0] = temp[0:11];
    PC = PC+1;
    end
+endtask
+
+task DisplayOperands;
+    begin
+    $display("Operand1 = %0o,%0o,%0o",{4'b0000, FPAC[30:23]}, {FPAC[31], FPAC[22:12]},FPAC[11:0]);
+    $display("Operand2 = %0o,%0o,%0o",{4'b0000, FPAC2[30:23]}, {FPAC2[31], FPAC2[22:12]},FPAC2[11:0]);
+end
 endtask
 
 initial
@@ -697,7 +688,13 @@ initial
   $display("---------------------------------------------------------");
   $display("%0d Total instructions executed, using %0d clocks\n",TotalIC, TotalClocks);
   $display("Average CPI        = %4.2f\n",100.0 * TotalClocks/(TotalIC * 100.0));	
-  $display("Equal = %d\nRounded = %d\nWrong = %d",Equal, Rounded, Wrong);
+
+  if(Debug==1) 
+      begin
+      $display("Equal   = %d",Equal);
+      $display("Rounded = %d",Rounded);
+      $display("Wrong   = %d", Wrong);
+      end
   end
 
 
